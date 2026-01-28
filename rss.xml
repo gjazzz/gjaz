@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<rss version="2.0">
+<channel>
+  <title>My Roblox Outfit Feed</title>
+  <link>https://yourusername.github.io</link>
+  <description>Roblox outfit sets</description>
+
+  <item>
+    <title>Test Outfit</title>
+    <link>https://www.roblox.com</link>
+    <description>Test description</description>
+    <enclosure 
+      url="https://yourusername.github.io/images/test.png"
+      type="image/png"/>
+    <guid>test-1</guid>
+    <pubDate>Mon, 27 Jan 2026 10:00:00 GMT</pubDate>
+  </item>
+
+</channel>
+</rss>
