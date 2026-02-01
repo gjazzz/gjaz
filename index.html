@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Infinite Drift & Vibe</title>
+    <style>
+        /* Base styles */
+        :root {
+            --bg-color: #121212;
+            --text-color: #e0e0e0;
+            --accent-color: #6200ee;
+            --canvas-bg: #1a1a1a;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Canvas and game container */
+        #game-container {
+            flex: 1;
+            position: relative;
+        }
+
+        canvas {
+            background-color: var(--canvas-bg);
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* HUD Styles */
+        .hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            min-width: 200px;
+        }
+
+        .hud-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+
+        /* Control panel */
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        /* Mobile-specific adjustments */
+        @media (max-width: 768px) {
+            .hud {
+                width: calc(100% - 40px);
+                left: 20px;
+            }
+            
+            .controls {
+                width: calc(100% - 40px);
+                left: 20px;
+                transform: none;
+            }
+        }
+
+        /* Dark mode toggle */
+        .dark-mode-toggle {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        /* Music player */
+        .music-player {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div class="hud">
+            <div class="hud-row">
+                <span>SCORE: <span id="score">0</span></span>
+                <span>COMBO: <span id="combo">0</span></span>
+            </div>
+            <div class="hud-row">
+                <span>MODE: <span id="mode">DRIFT</span></span>
+                <span>SPEED: <span id="speed">0</span> km/h</span>
+            </div>
+        </div>
+        
+        <div class="dark-mode-toggle" onclick="toggleDarkMode()">🌓</div>
+        
+        <div class="music-player">
+            <audio id="game-music" controls>
+                <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" type="audio/mpeg">
+            </audio>
+        </div>
+        
+        <div class="controls">
+            <button onclick="toggleMode()">SWITCH MODE</button>
+            <button onclick="exportNotes()">DOWNLOAD NOTES</button>
+        </div>
+        
+        <canvas id="gameCanvas"></canvas>
+    </div>
+
+    <script>
+        // Game state
+        const gameState = {
+            mode: 'DRIFT',  // DRIFT or VIBE
+            score: 0,
+            combo: 0,
+            speed: 0,
+            drifting: false,
+            vibePoints: 0,
+            lastDriftTime: 0,
+            roadSegments: [],
+            playerPosition: { x: 0, y: 0 },
+            playerRotation: 0
+        };
+
+        // Canvas setup
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Set canvas size to window dimensions
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // Procedural world generation (city biome)
+        function generateRoadSegment(segmentId) {
+            // City road generation using Perlin-like noise
+            const x = segmentId * 1000;
+            const y = Math.sin(segmentId * 0.1) * 50;
+            
+            return {
+                id: segmentId,
+                x: x,
+                y: y,
+                width: 20,
+                height: 100,
+                obstacles: []
+            };
+        }
+
+        // Initialize world with 20 segments
+        for (let i = 0; i < 20; i++) {
+            gameState.roadSegments.push(generateRoadSegment(i));
+        }
+
+        // Physics simulation
+        function updatePhysics(deltaTime) {
+            // Drift mode physics
+            if (gameState.mode === 'DRIFT') {
+                // Simplified drift physics
+                gameState.playerRotation += (gameState.drifting ? 0.01 : -0.005) * deltaTime;
+                gameState.speed += 0.1 * deltaTime;
+                
+                // Drift scoring
+                if (gameState.drifting) {
+                    const driftScore = Math.floor(gameState.speed * Math.abs(gameState.playerRotation) * 0.1);
+                    gameState.score += driftScore;
+                    gameState.combo = Math.min(gameState.combo + 1, 100);
+                } else {
+                    gameState.combo = Math.max(0, gameState.combo - 0.5);
+                }
+            } 
+            // Vibe mode physics
+            else {
+                gameState.speed = Math.max(50, gameState.speed - 0.05 * deltaTime);
+                gameState.vibePoints += Math.floor(gameState.speed * 0.1);
+            }
+            
+            // Update player position
+            gameState.playerPosition.x += Math.cos(gameState.playerRotation) * gameState.speed * deltaTime * 0.1;
+            gameState.playerPosition.y += Math.sin(gameState.playerRotation) * gameState.speed * deltaTime * 0.1;
+        }
+
+        // Rendering
+        function render() {
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw road segments
+            gameState.roadSegments.forEach(segment => {
+                ctx.fillStyle = '#333';
+                ctx.fillRect(
+                    canvas.width/2 + segment.x - segment.width/2,
+                    canvas.height/2 + segment.y - segment.height/2,
+                    segment.width,
+                    segment.height
+                );
+            });
+            
+            // Draw player car
+            ctx.save();
+            ctx.translate(canvas.width/2, canvas.height/2);
+            ctx.rotate(gameState.playerRotation);
+            
+            // Drift car
+            if (gameState.mode === 'DRIFT') {
+                ctx.fillStyle = '#ff4444';
+                ctx.fillRect(-15, -10, 30, 20);  // Car body
+                ctx.fillStyle = '#222';
+                ctx.fillRect(-10, -10, 5, 20);   // Front wheel
+                ctx.fillRect(5, -10, 5, 20);     // Rear wheel
+            } 
+            // Vibe van
+            else {
+                ctx.fillStyle = '#44ccff';
+                ctx.fillRect(-20, -15, 40, 30);  // Van body
+                ctx.fillStyle = '#222';
+                ctx.fillRect(-15, -15, 10, 30);  // Front wheels
+                ctx.fillRect(5, -15, 10, 30);    // Rear wheels
+            }
+            
+            ctx.restore();
+            
+            // Draw HUD text
+            document.getElementById('score').textContent = gameState.score;
+            document.getElementById('combo').textContent = gameState.combo;
+            document.getElementById('mode').textContent = gameState.mode;
+            document.getElementById('speed').textContent = Math.floor(gameState.speed);
+        }
+
+        // Game loop
+        function gameLoop() {
+            const currentTime = Date.now();
+            const deltaTime = gameState.lastDriftTime ? currentTime - gameState.lastDriftTime : 0;
+            gameState.lastDriftTime = currentTime;
+            
+            updatePhysics(deltaTime);
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Control handlers
+        function toggleMode() {
+            gameState.mode = gameState.mode === 'DRIFT' ? 'VIBE' : 'DRIFT';
+            gameState.speed = gameState.mode === 'DRIFT' ? 100 : 50;
+            document.getElementById('mode').textContent = gameState.mode;
+        }
+
+        function toggleDarkMode() {
+            const darkMode = localStorage.getItem('darkMode') === 'true';
+            localStorage.setItem('darkMode', !darkMode);
+            document.body.style.backgroundColor = darkMode ? '#f5f5f5' : '#121212';
+        }
+
+        // Export demo notes
+        function exportNotes() {
+            const data = {
+                gameState: gameState,
+                timestamp: new Date().toISOString()
+            };
+            
+            const dataStr = JSON.stringify(data, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'drift-game-notes.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // Input handling
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                gameState.drifting = true;
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (e.code === 'Space') {
+                gameState.drifting = false;
+            }
+        });
+
+        // Mobile touch controls
+        canvas.addEventListener('touchstart', handleTouch);
+        canvas.addEventListener('touchmove', handleTouch);
+        
+        function handleTouch(e) {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const rect = canvas.getBoundingClientRect();
+            const x = touch.clientX - rect.left;
+            const y = touch.clientY - rect.top;
+            
+            // Simple touch-based steering
+            gameState.playerRotation = (x - canvas.width/2) * 0.01;
+        }
+
+        // Start game
+        gameLoop();
+    </script>
+</body>
+</html>
